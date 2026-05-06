@@ -25,6 +25,9 @@ CLASSIFICATION_LOG_WORKSHEET_NAME = os.environ.get("CLASSIFICATION_LOG_WORKSHEET
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash-lite")
 CLASSIFICATION_DELAY = float(os.environ.get("CLASSIFICATION_DELAY", "0.5"))
+CLASSIFICATION_BATCH_LIMIT = int(os.environ.get("CLASSIFICATION_BATCH_LIMIT", "10"))
+MAX_RETRIES = int(os.environ.get("MAX_RETRIES", "3"))
+RETRY_WAIT_SECONDS = int(os.environ.get("RETRY_WAIT_SECONDS", "60"))
 
 SHEET_COLUMNS = [
     "수집일시",

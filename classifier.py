@@ -1,6 +1,7 @@
 import json
 import logging
 import re
+import time
 
 from google import genai
 
@@ -36,33 +37,47 @@ def _get_client():
     return _client
 
 
+def _parse_response(text: str) -> dict:
+    json_match = re.search(r"\{.*\}", text, re.DOTALL)
+    if not json_match:
+        raise ValueError(f"JSON 파싱 실패: {text[:100]}")
+    data = json.loads(json_match.group())
+    result = data.get("result", "🔍 검토필요")
+    score = int(data.get("score", 0))
+    reason = data.get("reason", "")
+    valid = {"✅ 관련", "🔍 검토필요", "❌ 무관"}
+    if result not in valid:
+        logger.warning("알 수 없는 result 값: %s → 검토필요로 대체", result)
+        result = "🔍 검토필요"
+    return {"result": result, "score": score, "reason": reason}
+
+
 def classify(title: str, business_name: str) -> dict:
+    """분류 결과를 반환한다. 429 한도 초과로 최종 실패 시 예외를 raise한다."""
     prompt = PROMPT.format(title=title, business_name=business_name)
-    try:
-        response = _get_client().models.generate_content(
-            model=config.GEMINI_MODEL,
-            contents=prompt,
-        )
-        text = response.text.strip()
 
-        # JSON 블록 추출 (마크다운 코드블록 대응)
-        json_match = re.search(r"\{.*\}", text, re.DOTALL)
-        if not json_match:
-            raise ValueError(f"JSON 파싱 실패: {text[:100]}")
+    for attempt in range(1, config.MAX_RETRIES + 1):
+        try:
+            response = _get_client().models.generate_content(
+                model=config.GEMINI_MODEL,
+                contents=prompt,
+            )
+            return _parse_response(response.text.strip())
 
-        data = json.loads(json_match.group())
-        result = data.get("result", "🔍 검토필요")
-        score = int(data.get("score", 0))
-        reason = data.get("reason", "")
+        except Exception as e:
+            err_str = str(e)
+            is_rate_limit = "429" in err_str or "RESOURCE_EXHAUSTED" in err_str
 
-        # result 값 유효성 검증
-        valid = {"✅ 관련", "🔍 검토필요", "❌ 무관"}
-        if result not in valid:
-            logger.warning("알 수 없는 result 값: %s → 검토필요로 대체", result)
-            result = "🔍 검토필요"
-
-        return {"result": result, "score": score, "reason": reason}
-
-    except Exception as e:
-        logger.error("분류 실패 [%s]: %s", title[:30], e)
-        return {"result": "🔍 검토필요", "score": 0, "reason": f"API 오류: {e}"}
+            if is_rate_limit:
+                if attempt < config.MAX_RETRIES:
+                    logger.warning(
+                        "429 한도 초과 (시도 %d/%d) → %d초 대기 후 재시도",
+                        attempt, config.MAX_RETRIES, config.RETRY_WAIT_SECONDS,
+                    )
+                    time.sleep(config.RETRY_WAIT_SECONDS)
+                else:
+                    logger.error("429 한도 초과: 최대 재시도 횟수(%d) 도달, 실행 중단", config.MAX_RETRIES)
+                    raise
+            else:
+                logger.error("분류 실패 [%s]: %s", title[:30], e)
+                raise

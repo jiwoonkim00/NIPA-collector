@@ -3,6 +3,9 @@
 NIPA(nipa.kr) 사업공고 목록을 3시간마다 크롤링하여 Google Sheets에 신규 공고를 자동 추가합니다.  
 GitHub Actions로 클라우드에서 자동 실행되며, PC가 꺼져 있어도 동작합니다.
 
+추가로 `classify.py`를 통해 전체 공고 시트의 미분류 항목을 Gemini로 의료AI 관련성 분류해
+`의료AI_관련공고`, `분류_로그` 시트에 적재할 수 있습니다.
+
 ## 파일 구조
 
 ```
@@ -13,7 +16,10 @@ NIPA_list/
 ├── main.py                # 실행 진입점
 ├── scraper.py             # NIPA 페이지 수집 + 파싱
 ├── sheets_client.py       # Google Sheets 읽기/쓰기
+├── classify.py            # 미분류 공고 의료AI 관련성 분류 실행
+├── classifier.py          # Gemini 프롬프트/응답 파싱/재시도 로직
 ├── config.py              # 환경변수 로딩
+├── debug_sheets.py        # 시트 연결/행 조회 디버깅용
 ├── requirements.txt
 ├── .env.example           # 환경변수 예시 (로컬 실행용)
 └── nipa_agent.log         # 실행 로그 (자동 생성)
@@ -74,6 +80,12 @@ SHEET_ID=스프레드시트_ID
 CREDENTIALS_FILE=credentials.json
 PAGES_TO_SCAN=3
 REQUEST_DELAY=1.0
+GEMINI_API_KEY=your_api_key
+GEMINI_MODEL=gemini-2.5-flash-lite
+CLASSIFICATION_DELAY=0.5
+CLASSIFICATION_BATCH_LIMIT=10
+MAX_RETRIES=3
+RETRY_WAIT_SECONDS=60
 ```
 
 ### Google Sheets 서비스 계정 설정
@@ -92,6 +104,16 @@ python main.py
 ```
 [결과] 신규 추가: 5건 / 중복 스킵: 25건 / 실패: 0건
 ```
+
+### 의료AI 분류 실행
+
+```bash
+python classify.py
+```
+
+- `CLASSIFICATION_BATCH_LIMIT` 만큼만 한 번에 분류합니다. (기본 `10`)
+- Gemini API `429`(rate limit) 발생 시 `MAX_RETRIES`만큼 재시도하고, 재시도 간 `RETRY_WAIT_SECONDS`만큼 대기합니다.
+- 재시도 소진 또는 API 오류가 발생하면 해당 공고부터 실행을 중단하며, 다음 실행 시 다시 시도됩니다.
 
 ### 로그 확인
 
