@@ -1,4 +1,5 @@
 .env
+.env.example
 credentials.json
 *.log
 __pycache__/

@@ -31,4 +31,17 @@ jobs:
           CREDENTIALS_FILE: credentials.json
           PAGES_TO_SCAN: 3
           REQUEST_DELAY: 1.0
+          SOURCE_WORKSHEET_NAME: 전체_공고
         run: python main.py
+
+      - name: 의료AI 분류 실행
+        env:
+          SHEET_ID: ${{ secrets.SHEET_ID }}
+          CREDENTIALS_FILE: credentials.json
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          SOURCE_WORKSHEET_NAME: 전체_공고
+          TARGET_WORKSHEET_NAME: 의료AI_관련공고
+          CLASSIFICATION_LOG_WORKSHEET_NAME: 분류_로그
+          GEMINI_MODEL: gemini-2.5-flash-lite
+          CLASSIFICATION_DELAY: 0.5
+        run: python classify.py
